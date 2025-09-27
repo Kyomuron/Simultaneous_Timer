@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OBS Stopwatch Overlay</title>
+  <style>
+    :root {
+      --accent: #38bdf8;
+      --glow: rgba(56, 189, 248, 0.65);
+      --bg: transparent;
+      --font-primary: "Poppins", "Noto Sans JP", "Segoe UI", sans-serif;
+      --font-secondary: "Poppins", "Noto Sans JP", "Segoe UI", sans-serif;
+      --shadow-base: rgba(2, 6, 23, 0.35);
+      --title-size: clamp(22px, 4vw, 42px);
+      --time-size: clamp(48px, 12vw, 128px);
+      --stroke: rgba(15, 23, 42, 0.6);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      color: #f8fafc;
+      font-family: var(--font-primary);
+      overflow: hidden;
+    }
+
+    main {
+      display: grid;
+      gap: 14px;
+      text-align: center;
+      padding: clamp(20px, 4vw, 48px);
+      border-radius: 32px;
+      background: rgba(15, 23, 42, 0.18);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      backdrop-filter: blur(16px);
+      box-shadow: 0 30px 85px rgba(2, 6, 23, 0.35);
+      justify-items: center;
+      width: min(95vw, 1320px);
+    }
+
+    .title {
+      font-family: var(--font-secondary);
+      font-size: var(--title-size);
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      text-shadow: 0 4px 18px rgba(2, 6, 23, 0.45);
+      opacity: 0.9;
+    }
+
+    .subtitle {
+      font-size: clamp(16px, 3vw, 26px);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(226, 232, 240, 0.7);
+    }
+
+    .time-shell {
+      --slot-gap: clamp(0.08em, 0.12em + 0.1vw, 0.18em);
+      --pad-inline: clamp(20px, 3vw, 60px);
+      --pad-block: clamp(12px, 2vw, 28px);
+      position: relative;
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      padding: var(--pad-block) var(--pad-inline);
+      border-radius: clamp(22px, 3vw, 40px);
+      background: rgba(15, 23, 42, 0.28);
+      box-shadow: 0 22px 70px rgba(2, 6, 23, 0.38);
+      backdrop-filter: blur(22px);
+      font-size: var(--time-size);
+      width: max-content;
+      max-width: 100%;
+      justify-self: center;
+      transition: background 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .time-shell::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      box-shadow: 0 0 18px rgba(56, 189, 248, 0.22);
+      background: rgba(56, 189, 248, 0.08);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    .time-shell[data-state="running"]::after {
+      opacity: 1;
+    }
+
+    .time {
+      font-size: 1em;
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum";
+      text-shadow:
+        0 0 22px var(--glow),
+        0 16px 40px var(--shadow-base);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--slot-gap);
+      line-height: 1;
+      flex-wrap: nowrap;
+    }
+
+    .time-slot {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 1ch;
+    }
+
+    .time-slot.separator {
+      flex: 0 0 0.6ch;
+      opacity: 0.88;
+    }
+
+    .status {
+      font-size: clamp(12px, 2vw, 16px);
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: rgba(226, 232, 240, 0.75);
+    }
+
+    .status[data-state="running"] {
+      color: var(--accent);
+    }
+
+    .status[data-state="paused"] {
+      color: rgba(248, 113, 113, 0.8);
+    }
+
+    .controls {
+      margin-top: 10px;
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      opacity: 0.92;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+    }
+
+    body.controls-hidden .controls {
+      transform: translateY(24px);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    button {
+      padding: 10px 24px;
+      border-radius: 999px;
+      border: none;
+      background: rgba(15, 23, 42, 0.88);
+      color: #e2e8f0;
+      font-size: 0.9rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      transition: transform 0.15s ease, background 0.25s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      background: rgba(30, 41, 59, 0.88);
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    button[data-role="primary"] {
+      background: var(--accent);
+      color: #0f172a;
+    }
+
+    button[data-role="primary"][data-state="paused"] {
+      background: rgba(165, 180, 252, 0.9);
+      color: #020617;
+    }
+
+    button[data-role="primary"][data-state="idle"] {
+      background: var(--accent);
+      color: #0f172a;
+    }
+
+    button[data-role="primary"][data-state="running"] {
+      background: rgba(248, 113, 113, 0.92);
+      color: #0f172a;
+    }
+
+    body.marker-active .time-shell {
+      background: rgba(15, 23, 42, 0.35);
+      box-shadow: 0 40px 95px rgba(56, 189, 248, 0.25);
+    }
+
+    body.marker-active .time {
+      text-shadow: 0 0 32px var(--glow), 0 18px 48px rgba(56, 189, 248, 0.45);
+      color: var(--accent);
+    }
+
+    body.marker-active main {
+      box-shadow: 0 40px 95px rgba(56, 189, 248, 0.25);
+    }
+
+    .status[data-state="marker"] {
+      color: var(--accent);
+    }
+
+    body.frameless main {
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      padding: clamp(12px, 3vw, 32px);
+      backdrop-filter: none;
+    }
+
+    body.frameless .hint {
+      display: none;
+    }
+
+    .hint {
+      position: fixed;
+      bottom: 16px;
+      right: 20px;
+      font-size: 12px;
+      letter-spacing: 0.2em;
+      color: rgba(148, 163, 184, 0.55);
+      text-transform: uppercase;
+    }
+
+    body.controls-hidden .hint::after {
+      content: "Controls hidden (press C)";
+    }
+
+    body:not(.controls-hidden) .hint::after {
+      content: "Press C to hide controls";
+    }
+  </style>
+</head>
+<body class="controls-hidden">
+  <main>
+    <div class="title" id="overlayTitle"></div>
+    <div class="subtitle" id="overlaySubtitle"></div>
+    <div class="time-shell" data-state="idle">
+      <div class="time" id="overlayTime" data-state="idle">00:00:00.00</div>
+    </div>
+    <div class="status" id="overlayStatus" data-state="idle">Ready</div>
+    <div class="controls" id="overlayControls">
+      <button id="toggle" data-role="primary" data-state="idle">Start</button>
+      <button id="reset">Reset</button>
+      <button id="mark">Marker</button>
+    </div>
+  </main>
+  <div class="hint"></div>
+  <script src="obs-timer.js" defer></script>
+</body>
+</html>
